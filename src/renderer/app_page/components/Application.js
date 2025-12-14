@@ -331,6 +331,9 @@ const Application = (settings) => {
       case '8':
         handleChangeWidth((activeWidthIndex + 1) % widthList.length);
         break;
+      case '0':
+        setShowCuteCursor((prev) => !prev);
+        break;
       case 'x':
         if (['eraser', 'laser'].includes(activeTool)) {
           break;
