@@ -121,7 +121,7 @@ const DrawDesk = ({
 
     const coordinates = getMouseCoordinates(event)
 
-    handleMouseDown(coordinates);
+    handleMouseDown({ ...coordinates, metaKey: event.metaKey });
 
     event.preventDefault();
     // event.stopPropagation();
@@ -130,19 +130,19 @@ const DrawDesk = ({
   const onMouseMove = (event) => {
     const coordinates = getMouseCoordinates(event)
 
-    handleMouseMove(coordinates);
+    handleMouseMove({ ...coordinates, metaKey: event.metaKey });
   }
 
   const onMouseUp = (event) => {
     const coordinates = getMouseCoordinates(event)
 
-    handleMouseUp(coordinates);
+    handleMouseUp({ ...coordinates, metaKey: event.metaKey });
   }
 
   const onDoubleClick = (event) => {
     const coordinates = getMouseCoordinates(event);
 
-    handleDoubleClick(coordinates);
+    handleDoubleClick({ ...coordinates, metaKey: event.metaKey });
   }
 
   return (

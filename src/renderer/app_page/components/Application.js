@@ -112,6 +112,25 @@ const Application = (settings) => {
   const [mainColorIndex, setMainColorIndex] = useState(initialMainColorIndex);
   const [secondaryColorIndex, setSecondaryColorIndex] = useState(initialSecondaryColorIndex);
 
+  const penStraightModeRef = useRef(false);
+  const penPointsBackupRef = useRef(null);
+
+  const isDrawingRef = useRef(isDrawing);
+  const activeToolRef = useRef(activeTool);
+  const mouseCoordinatesRef = useRef(mouseCoordinates);
+
+  useEffect(() => {
+    isDrawingRef.current = isDrawing;
+  }, [isDrawing]);
+
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
+
+  useEffect(() => {
+    mouseCoordinatesRef.current = mouseCoordinates;
+  }, [mouseCoordinates]);
+
   useEffect(() => {
     window.electronAPI.onResetScreen(handleReset);
     window.electronAPI.onToggleToolbar(handleToggleToolbar);
@@ -371,6 +390,34 @@ const Application = (settings) => {
 
     if (eventKey === 'shift') {
       setIsShiftPressed(false);
+    }
+
+    // While drawing with the Pen tool, holding ⌘ (Meta) forces a straight line.
+    // If ⌘ is released without any mousemove event, we still need to revert.
+    if (eventKey === 'meta') {
+      if (!isDrawingRef.current) return;
+      if (activeToolRef.current !== 'pen') return;
+      if (!penStraightModeRef.current) return;
+      if (!penPointsBackupRef.current) return;
+
+      const { x, y } = mouseCoordinatesRef.current;
+
+      setAllFigures((prevFigures) => {
+        if (prevFigures.length === 0) return prevFigures;
+
+        const figures = [...prevFigures];
+        const currentFigure = figures[figures.length - 1];
+
+        if (!currentFigure || currentFigure.type !== 'pen') return prevFigures;
+
+        const restoredPoints = penPointsBackupRef.current;
+
+        currentFigure.points = [...restoredPoints, [x, y]];
+        return figures;
+      });
+
+      penStraightModeRef.current = false;
+      penPointsBackupRef.current = null;
     }
   }, []);
 
@@ -712,9 +759,14 @@ const Application = (settings) => {
 
     setAllFigures([...allFigures, newFigure]);
     setIsDrawing(true);
+
+    if (activeTool === 'pen') {
+      penStraightModeRef.current = false;
+      penPointsBackupRef.current = null;
+    }
   };
 
-  const handleMouseMove = ({ x, y }) => {
+  const handleMouseMove = ({ x, y, metaKey }) => {
     if (isActiveFigureMoving()) {
       const activeFigure = findActiveFigure()
 
@@ -756,10 +808,41 @@ const Application = (settings) => {
       if (['pen', 'highlighter'].includes(activeTool)) {
         const currentFigure = allFigures[allFigures.length - 1];
 
-        currentFigure.points = [...currentFigure.points, [x, y]];
+        if (activeTool === 'pen') {
+          const isMetaPressed = !!metaKey;
 
+          if (isMetaPressed) {
+            if (!penStraightModeRef.current) {
+              penStraightModeRef.current = true;
+              penPointsBackupRef.current = currentFigure.points;
+            }
+
+            const startPoint = (penPointsBackupRef.current?.[0]) ?? currentFigure.points[0];
+            currentFigure.points = [startPoint, [x, y]];
+            setAllFigures([...allFigures]);
+            return;
+          }
+
+          if (penStraightModeRef.current) {
+            const restoredPoints = penPointsBackupRef.current ?? currentFigure.points;
+            currentFigure.points = [...restoredPoints, [x, y]];
+
+            penStraightModeRef.current = false;
+            penPointsBackupRef.current = null;
+
+            setAllFigures([...allFigures]);
+            return;
+          }
+
+          currentFigure.points = [...currentFigure.points, [x, y]];
+          setAllFigures([...allFigures]);
+          return;
+        }
+
+        // Highlighter always stays freehand
+        currentFigure.points = [...currentFigure.points, [x, y]];
         setAllFigures([...allFigures]);
-        return
+        return;
       }
 
       if (shapeList.includes(activeTool)) {
@@ -840,10 +923,18 @@ const Application = (settings) => {
       if (activeTool === 'pen') {
         const currentFigure = allFigures.at(-1);
 
+        // Ensure the straight-line endpoint matches the release point.
+        if (penStraightModeRef.current && currentFigure?.type === 'pen' && currentFigure.points.length === 2) {
+          currentFigure.points[1] = upPoint;
+        }
+
         setUndoStackFigures(prevUndoStack => [...prevUndoStack, { type: 'add', figures: [currentFigure] }]);
         setRedoStackFigures([]);
 
         setAllFigures([...allFigures]);
+
+        penStraightModeRef.current = false;
+        penPointsBackupRef.current = null;
       }
 
       if (shapeList.includes(activeTool)) {
