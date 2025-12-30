@@ -10,3 +10,9 @@ node_modules
 # Electron-Forge
 out/
 .private/
+
+# Playwright Test Results
+testing/playwright/test-results/
+testing/playwright/.auth/
+testing/playwright/playwright-report/
+testing/playwright/.cache/
